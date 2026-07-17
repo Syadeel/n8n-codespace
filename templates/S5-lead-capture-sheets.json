@@ -1,0 +1,114 @@
+{
+  "name": "Lead Capture → Google Sheets",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-capture",
+        "responseMode": "onReceived",
+        "responseCode": 200
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "lead-capture"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.OPENAI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Score this lead from 0-100 based on their info. Return JSON: {\\\"score\\\": 85, \\\"reason\\\": \\\"High intent based on...\\\", \\\"temperature\\\": \\\"hot\\\"} (hot/warm/cold)\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Name: {{ $json.body.name }}\\nEmail: {{ $json.body.email }}\\nCompany: {{ $json.body.company }}\\nMessage: {{ $json.body.message }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "openai",
+      "name": "AI Score Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name": "={{ $json.body.name }}",
+            "Email": "={{ $json.body.email }}",
+            "Company": "={{ $json.body.company }}",
+            "Message": "={{ $json.body.message }}",
+            "Score": "={{ $json.choices[0].message.content }}",
+            "Timestamp": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "sheets-write",
+      "name": "Save to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [720, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Score Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Score Lead": {
+      "main": [
+        [
+          {
+            "node": "Save to Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": ""
+  },
+  "tags": []
+}

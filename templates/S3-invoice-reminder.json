@@ -1,0 +1,109 @@
+{
+  "name": "Invoice Reminder",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "daily"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        }
+      },
+      "id": "sheets-trigger",
+      "name": "Google Sheets Trigger",
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.Status }}",
+              "operation": "equals",
+              "value2": "Unpaid"
+            }
+          ]
+        }
+      },
+      "id": "filter",
+      "name": "Filter Unpaid",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "invoices@yourdomain.com",
+        "toEmail": "={{ $json.ClientEmail }}",
+        "subject": "Payment Reminder: Invoice {{ $json.InvoiceNumber }}",
+        "emailType": "html",
+        "html": "<h2>Payment Reminder</h2><p>Hi {{ $json.ClientName }},</p><p>This is a friendly reminder that Invoice <strong>{{ $json.InvoiceNumber }}</strong> for <strong>${{ $json.Amount }}</strong> is currently unpaid.</p><p>Due Date: {{ $json.DueDate }}</p><p>Please process payment at your earliest convenience.</p><p>Thank you,<br>Your Company</p>",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Reminder Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [700, 300],
+      "credentials": {
+        "smtp": {
+          "id": "",
+          "name": "SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Google Sheets Trigger": {
+      "main": [
+        [
+          {
+            "node": "Filter Unpaid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Unpaid": {
+      "main": [
+        [
+          {
+            "node": "Send Reminder Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": ""
+  },
+  "tags": []
+}

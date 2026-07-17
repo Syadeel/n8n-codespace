@@ -1,0 +1,194 @@
+{
+  "name": "AI Lead Generation Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyDay"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Daily Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Status",
+              "lookupValue": "New"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "sheets-read",
+      "name": "Get Search Terms",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [460, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://serpapi.com/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "engine",
+              "value": "google_maps"
+            },
+            {
+              "name": "q",
+              "value": "={{ $json.SearchTerm }}"
+            },
+            {
+              "name": "api_key",
+              "value": "={{ $env.SERPAPI_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "serpapi",
+      "name": "Scrape Google Maps",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.OPENAI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Score these leads 0-100 based on fit. Return JSON array with name, email, score, temperature (hot/warm/cold), reason.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ JSON.stringify($json.local_results || []) }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "openai",
+      "name": "AI Score Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData"
+        },
+        "options": {}
+      },
+      "id": "sheets-write",
+      "name": "Save Leads to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1120, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Search Terms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Search Terms": {
+      "main": [
+        [
+          {
+            "node": "Scrape Google Maps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape Google Maps": {
+      "main": [
+        [
+          {
+            "node": "AI Score Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Score Leads": {
+      "main": [
+        [
+          {
+            "node": "Save Leads to Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": ""
+  },
+  "tags": []
+}

@@ -1,0 +1,149 @@
+{
+  "name": "SEO Content Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "seo-content",
+        "responseMode": "onReceived",
+        "responseCode": 200
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "seo-content"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.OPENAI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Create an SEO-optimized blog post outline for this topic. Include:\\n1. Title (with keyword)\\n2. Meta description (155 chars)\\n3. H2 headings (5-7)\\n4. H3 subheadings under each H2\\n5. Target keywords\\n6. Internal link suggestions\\nReturn as JSON.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Topic: {{ $json.body.topic }}\\nTarget Keyword: {{ $json.body.keyword }}\\nAudience: {{ $json.body.audience }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "openai-outline",
+      "name": "AI Generate Outline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.OPENAI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Write a 1500-word SEO blog post based on this outline. Use the target keyword naturally. Include examples, bullet points, and a conclusion with CTA.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ JSON.stringify($json.choices[0].message.content) }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "openai-write",
+      "name": "AI Write Full Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Topic": "={{ $json.body.topic }}",
+            "Keyword": "={{ $json.body.keyword }}",
+            "Outline": "={{ $json.choices[0].message.content }}",
+            "FullPost": "={{ $json.choices[0].message.content }}",
+            "Status": "Draft",
+            "CreatedAt": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "sheets-write",
+      "name": "Save to Content Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [920, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Generate Outline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Generate Outline": {
+      "main": [
+        [
+          {
+            "node": "AI Write Full Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Write Full Post": {
+      "main": [
+        [
+          {
+            "node": "Save to Content Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": ""
+  },
+  "tags": []
+}

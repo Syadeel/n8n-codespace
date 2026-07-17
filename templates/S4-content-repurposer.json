@@ -1,0 +1,159 @@
+{
+  "name": "Content Repurposer",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        }
+      },
+      "id": "sheets-trigger",
+      "name": "Google Sheets Trigger",
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.Status }}",
+              "operation": "equals",
+              "value2": "New"
+            }
+          ]
+        }
+      },
+      "id": "filter",
+      "name": "Filter New Content",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.OPENAI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a social media content creator. Take this blog post and create 3 social media posts:\\n1. LinkedIn post (professional, 150-200 words)\\n2. Twitter/X post (punchy, under 280 characters)\\n3. Instagram caption (engaging, with hashtag suggestions)\\n\\nReturn as JSON: {\\\"linkedin\\\": \\\"...\\\", \\\"twitter\\\": \\\"...\\\", \\\"instagram\\\": \\\"...\\\"}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ $json.Content }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "openai",
+      "name": "AI Repurpose Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LinkedIn": "={{ $json.choices[0].message.content }}",
+            "Twitter": "={{ $json.choices[0].message.content }}",
+            "Instagram": "={{ $json.choices[0].message.content }}",
+            "Timestamp": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "sheets-write",
+      "name": "Save to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [940, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Google Sheets Trigger": {
+      "main": [
+        [
+          {
+            "node": "Filter New Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter New Content": {
+      "main": [
+        [
+          {
+            "node": "AI Repurpose Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Repurpose Content": {
+      "main": [
+        [
+          {
+            "node": "Save to Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": ""
+  },
+  "tags": []
+}

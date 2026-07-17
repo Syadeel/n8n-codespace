@@ -1,0 +1,183 @@
+{
+  "name": "Competitor Price Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Daily Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "options": {}
+      },
+      "id": "sheets-read",
+      "name": "Get Competitor URLs",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [460, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.URL }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "http",
+      "name": "Scrape Competitor Page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.OPENAI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Extract the main product price and any discounts from this HTML. Return JSON: {\\\"price\\\": \\\"$XX.XX\\\", \\\"original_price\\\": \\\"$XX.XX\\\", \\\"discount\\\": \\\"XX%\\\", \\\"in_stock\\\": true/false}.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ $json.data }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "openai",
+      "name": "AI Extract Price",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $now.format('yyyy-MM-dd') }}",
+            "Competitor": "={{ $('Get Competitor URLs').item.json.Competitor }}",
+            "URL": "={{ $('Get Competitor URLs').item.json.URL }}",
+            "Price": "={{ $json.choices[0].message.content }}",
+            "Timestamp": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "sheets-write",
+      "name": "Log Price History",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1120, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Competitor URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Competitor URLs": {
+      "main": [
+        [
+          {
+            "node": "Scrape Competitor Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape Competitor Page": {
+      "main": [
+        [
+          {
+            "node": "AI Extract Price",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Extract Price": {
+      "main": [
+        [
+          {
+            "node": "Log Price History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": ""
+  },
+  "tags": []
+}

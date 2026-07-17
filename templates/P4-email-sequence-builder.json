@@ -1,0 +1,211 @@
+{
+  "name": "Email Sequence Builder",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "add-to-sequence",
+        "responseMode": "onReceived",
+        "responseCode": 200
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "add-to-sequence"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name": "={{ $json.body.name }}",
+            "Email": "={{ $json.body.email }}",
+            "SequenceStep": "1",
+            "NextSendDate": "={{ $now.format('yyyy-MM-dd') }}",
+            "Status": "Active"
+          }
+        },
+        "options": {}
+      },
+      "id": "sheets-write",
+      "name": "Add to Sequence Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [460, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "daily"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        }
+      },
+      "id": "sheets-trigger",
+      "name": "Check Sequence Daily",
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [240, 500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.NextSendDate }}",
+              "operation": "equals",
+              "value2": "={{ $now.format('yyyy-MM-dd') }}"
+            },
+            {
+              "value1": "={{ $json.Status }}",
+              "operation": "equals",
+              "value2": "Active"
+            }
+          ]
+        }
+      },
+      "id": "filter",
+      "name": "Filter Ready to Send",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 1,
+      "position": [460, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.OPENAI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Write email {{ $json.SequenceStep }} of a 5-email welcome sequence for {{ $json.Name }}. Be professional, friendly, and include a soft CTA. Subject line + body.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "openai",
+      "name": "AI Generate Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 500]
+    },
+    {
+      "parameters": {
+        "fromEmail": "hello@yourdomain.com",
+        "toEmail": "={{ $json.Email }}",
+        "subject": "={{ $json.choices[0].message.content.split('\\n')[0] }}",
+        "emailType": "html",
+        "html": "={{ $json.choices[0].message.content.split('\\n').slice(1).join('<br>') }}",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [900, 500],
+      "credentials": {
+        "smtp": {
+          "id": "",
+          "name": "SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Add to Sequence Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Sequence Daily": {
+      "main": [
+        [
+          {
+            "node": "Filter Ready to Send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Ready to Send": {
+      "main": [
+        [
+          {
+            "node": "AI Generate Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Generate Email": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": ""
+  },
+  "tags": []
+}

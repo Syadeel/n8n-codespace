@@ -1,0 +1,160 @@
+{
+  "name": "LinkedIn Outreach Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        }
+      },
+      "id": "sheets-trigger",
+      "name": "Google Sheets Trigger",
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.Status }}",
+              "operation": "equals",
+              "value2": "Pending"
+            }
+          ]
+        }
+      },
+      "id": "filter",
+      "name": "Filter Pending",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.OPENAI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Write a personalized LinkedIn connection request (under 300 characters). Be professional, mention their company/role, and suggest a brief chat. No spammy language.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Name: {{ $json.Name }}\\nCompany: {{ $json.Company }}\\nRole: {{ $json.Role }}\\nIndustry: {{ $json.Industry }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "openai",
+      "name": "AI Write Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name": "={{ $json.Name }}",
+            "LinkedInURL": "={{ $json.LinkedInURL }}",
+            "Message": "={{ $json.choices[0].message.content }}",
+            "Status": "Ready to Send",
+            "Timestamp": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "sheets-write",
+      "name": "Save Draft",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [900, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Google Sheets Trigger": {
+      "main": [
+        [
+          {
+            "node": "Filter Pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Pending": {
+      "main": [
+        [
+          {
+            "node": "AI Write Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Write Message": {
+      "main": [
+        [
+          {
+            "node": "Save Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": ""
+  },
+  "tags": []
+}

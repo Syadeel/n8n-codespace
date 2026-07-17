@@ -1,0 +1,146 @@
+{
+  "name": "Customer Support AI Triage",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "mailbox": "INBOX",
+        "searchCriteria": ["UNSEEN"]
+      },
+      "id": "gmail-trigger",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.OPENAI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Classify this support email. Return JSON: {\\\"category\\\": \\\"billing|technical|general|urgent\\\", \\\"priority\\\": \\\"low|medium|high|critical\\\", \\\"sentiment\\\": \\\"positive|neutral|negative\\\", \\\"summary\\\": \\\"one sentence\\\", \\\"suggested_response\\\": \\\"draft reply\\\"}.\\n\\nRules:\\n- billing: payments, invoices, refunds\\n- technical: bugs, errors, how-to\\n- general: questions, info requests\\n- urgent: complaints, legal, churn risk\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"From: {{ $json.from }}\\nSubject: {{ $json.subject }}\\n\\n{{ $json.textPlain }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "openai",
+      "name": "AI Classify & Respond",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+            "From": "={{ $json.from }}",
+            "Subject": "={{ $json.subject }}",
+            "Category": "={{ $json.choices[0].message.content }}",
+            "Status": "New"
+          }
+        },
+        "options": {}
+      },
+      "id": "sheets-log",
+      "name": "Log to Dashboard",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [700, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#support-alerts",
+        "text": "🚨 *{{ $json.choices[0].message.content }}*\n\n*From:* {{ $json.from }}\n*Subject:* {{ $json.subject }}\n*Summary:* {{ $json.choices[0].message.content }}",
+        "otherOptions": {}
+      },
+      "id": "slack-alert",
+      "name": "Slack Alert for High Priority",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [700, 400],
+      "credentials": {
+        "slackApi": {
+          "id": "",
+          "name": "Slack API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Classify & Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Classify & Respond": {
+      "main": [
+        [
+          {
+            "node": "Log to Dashboard",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Slack Alert for High Priority",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": ""
+  },
+  "tags": []
+}

@@ -1,0 +1,214 @@
+{
+  "name": "Invoice Automation System (Full)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Daily Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Status",
+              "lookupValue": "Unpaid"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "sheets-read",
+      "name": "Get Unpaid Invoices",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [460, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $now.diff($json.DueDate, 'days').days }}",
+              "operation": "largerEqual",
+              "value2": 7
+            }
+          ]
+        }
+      },
+      "id": "filter-overdue",
+      "name": "Filter 7+ Days Overdue",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.OPENAI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Write a professional payment reminder email. Be firm but polite. Mention the overdue amount and days overdue. Include a payment link placeholder. Return JSON: {\\\"subject\\\": \\\"...\\\", \\\"body\\\": \\\"...\\\"}.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Client: {{ $json.ClientName }}\\nInvoice: {{ $json.InvoiceNumber }}\\nAmount: ${{ $json.Amount }}\\nDue Date: {{ $json.DueDate }}\\nDays Overdue: {{ $now.diff($json.DueDate, 'days').days }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "openai",
+      "name": "AI Write Reminder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "invoices@yourdomain.com",
+        "toEmail": "={{ $json.ClientEmail }}",
+        "subject": "={{ $json.choices[0].message.content }}",
+        "emailType": "html",
+        "html": "={{ $json.choices[0].message.content }}",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Reminder",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1120, 300],
+      "credentials": {
+        "smtp": {
+          "id": "",
+          "name": "SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Status": "Reminder Sent",
+            "LastReminder": "={{ $now.format('yyyy-MM-dd') }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "sheets-update",
+      "name": "Update Invoice Status",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1120, 450],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Unpaid Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Unpaid Invoices": {
+      "main": [
+        [
+          {
+            "node": "Filter 7+ Days Overdue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter 7+ Days Overdue": {
+      "main": [
+        [
+          {
+            "node": "AI Write Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Write Reminder": {
+      "main": [
+        [
+          {
+            "node": "Send Reminder",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Invoice Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": ""
+  },
+  "tags": []
+}

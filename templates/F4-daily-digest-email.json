@@ -1,0 +1,103 @@
+{
+  "name": "Daily Digest Email",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "options": {}
+      },
+      "id": "sheets-read",
+      "name": "Read from Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [480, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "daily-digest@yourdomain.com",
+        "toEmail": "you@yourdomain.com",
+        "subject": "Daily Digest — {{ $now.format('yyyy-MM-dd') }}",
+        "emailType": "html",
+        "html": "<h1>Daily Digest</h1><p>Here's your daily summary:</p><table border='1' cellpadding='8' style='border-collapse: collapse;'><tr><th>Name</th><th>Email</th><th>Message</th></tr>{{ $json.data.map(row => `<tr><td>${row.Name || ''}</td><td>${row.Email || ''}</td><td>${row.Message || ''}</td></tr>`).join('') }}</table><p>Total entries: {{ $json.data.length }}</p>",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Daily Digest Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [720, 300],
+      "credentials": {
+        "smtp": {
+          "id": "",
+          "name": "SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read from Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read from Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Send Daily Digest Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": ""
+  },
+  "tags": []
+}
