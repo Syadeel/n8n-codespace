@@ -1,18 +1,14 @@
 {
   "name": "n8n Development",
-  "dockerComposeFile": "../docker-compose.yml",
-  "service": "n8n",
-  "workspaceFolder": "/home/node",
-  "forwardPorts": [5678],
-  "postCreateCommand": "echo 'n8n is running on http://localhost:5678'",
-  "customizations": {
-    "vscode": {
-      "extensions": [
-        "dbaeumer.vscode-eslint"
-      ]
-    }
-  },
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "forwardPorts": [5678],
+  "postCreateCommand": "docker compose up -d && sleep 30 && echo 'n8n is starting at http://localhost:5678'",
+  "customizations": {
+    "vscode": {
+      "extensions": []
+    }
   }
 }
